@@ -55,7 +55,7 @@ loss = tf.add(classification_term, tf.multiply(alpha, l2_norm))
 # my_kernel = tf.exp(tf.multiply(gamma, sq_dists))
 # output = tf.add(tf.matmul(tf.transpose(W),my_kernel),b)
 
-# test
+# 修改
 X_place = tf.placeholder(tf.float32,[2,None])
 Y_place = tf.placeholder(tf.float32,[1,None])
 w = tf.Variable(tf.random_normal(shape=[1,X_train.shape[1]]))
