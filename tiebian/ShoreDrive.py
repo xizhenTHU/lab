@@ -6,7 +6,7 @@ def RemoveSimilarData(latlng, dist_similar=0.2):
     # 使用西安附近经纬度拟合
     dist_lla = np.linalg.norm(np.diff(latlng, axis=0), ord=2, axis=1) * 1.015271759128623e+05 + 0.006120193348871
     while sum(dist_lla<dist_similar):
-        index=np.insert((dist_lla>=0.2), 0, [True], 0)
+        index=np.insert((dist_lla>=dist_similar), 0, [True], 0)
         latlng=latlng[index]
         dist_lla = np.linalg.norm(np.diff(latlng, axis=0), ord=2, axis=1) * 1.015271759128623e+05 + 0.006120193348871
     return latlng
@@ -47,6 +47,20 @@ def ExponentialDecay2(decay_factor, list_length):
     list_factor[-1]=1-np.sum(list_factor[0:list_length-1])
     return list_factor
 
+def angleArray_ptp(angle):
+    # 计算角度列向量中的峰峰值
+    temp=angle.copy()
+    if np.ptp(temp)>300.0:# 角度差过大，需要转换
+        temp[temp>180]-=360
+    return np.ptp(temp)
+
+def angleWeightSum(angle,weight):
+    # 比例相加
+    temp=angle.copy()
+    if np.ptp(temp)>300.0:# 角度差过大，需要转换
+        temp[temp>180]-=360
+    return np.dot(temp,weight)
+
 def getYawAim(weight, angle_list):
     # 输入weight表示权重，angle_list表示切线方向角序列
     # 输出加权后计算出的当地期望方向角
@@ -57,20 +71,31 @@ def getYawAim(weight, angle_list):
     temp_angle[0:angle_len]=angle_list
     temp_angle[angle_len:] = angle_list[-1]
     for ii in range(angle_len+1):
-        temp=temp_angle[ii:ii+factor_len].copy()# 面向对象
-        if np.ptp(temp)>300.0:# 角度差过大，需要转换
-            temp[temp>180]-=360
-        yawAim[ii]=np.dot(temp, weight)
+        yawAim[ii]=angleWeightSum(temp_angle[ii:ii+factor_len],weight)
     yawAim[yawAim<0]+=360
     return yawAim
 
-latlng=np.loadtxt('gps.txt')
+def plotPreResult(NorthEast,tangent_angle,yawAim):
+    plt.figure(1)
+    plt.plot(NorthEast[:,1],NorthEast[:,0], 'k-.')
+    # 切线方向
+    plt.quiver(NorthEast[:,1],NorthEast[:,0], np.sin(np.deg2rad(tangent_angle)), np.cos(np.deg2rad(tangent_angle)), color='r')
+    # 加权后方向
+    plt.quiver(NorthEast[:,1],NorthEast[:,0], np.sin(np.deg2rad(yawAim)), np.cos(np.deg2rad(yawAim)), color='b')
+    plt.axis("equal")
+    plt.xlabel('East')
+    plt.ylabel('North')
+    plt.show()
+
+latlng=np.loadtxt('5d24664ec7dfb97ec0eb699c.txt', delimiter=',')
+latlng=latlng[:,0:2]
+# latlng=np.loadtxt('gps.txt')
 # latlng=np.loadtxt('gps.csv', delimiter=',')
 # 去除重复数据
 _, ia= np.unique(latlng, return_index=True, axis=0)
 latlng= latlng[np.sort(ia), :]
 # 去除相近数据
-latlng=RemoveSimilarData(latlng, dist_similar=0.2)
+latlng=RemoveSimilarData(latlng, dist_similar=0.3)
 # 坐标系转换
 NorthEast=lla2ned_2D(latlng, latlng[0, 0], latlng[0, 1])
 # 计算切线方向角
@@ -78,21 +103,23 @@ tangent_angle=np.rad2deg(np.arctan2(np.diff(NorthEast[:, 1]), np.diff(NorthEast[
 # 角度限幅至0~360
 tangent_angle[tangent_angle < 0]+=360
 # 计算加权系数
-WeightFactor=ExponentialDecay(0.7,list_length=5)#指数衰减加权
+# WeightFactor=ExponentialDecay2(0.6,list_length=5)#指数衰减加权
+WeightFactor=ExponentialDecay(0.5,list_length=7)#指数衰减加权
 # WeightFactor=np.ones(5)*1/5.0 #平均加权
 # 计算每点处期望方向角
 yawAim=getYawAim(WeightFactor,tangent_angle)
 
-plt.figure(1)
-plt.plot(NorthEast[:,1],NorthEast[:,0], 'k-.')
-# 切线方向
-plt.quiver(NorthEast[:,1],NorthEast[:,0], np.sin(np.deg2rad(tangent_angle)), np.cos(np.deg2rad(tangent_angle)), color='r')
-# 加权后方向
-plt.quiver(NorthEast[:,1],NorthEast[:,0], np.sin(np.deg2rad(yawAim)), np.cos(np.deg2rad(yawAim)), color='b')
-plt.axis("equal")
-plt.xlabel('East')
-plt.ylabel('North')
-plt.show()
+plotPreResult(NorthEast,tangent_angle,yawAim)
+# plt.figure(1)
+# plt.plot(NorthEast[:,1],NorthEast[:,0], 'k-.')
+# # 切线方向
+# plt.quiver(NorthEast[:,1],NorthEast[:,0], np.sin(np.deg2rad(tangent_angle)), np.cos(np.deg2rad(tangent_angle)), color='r')
+# # 加权后方向
+# plt.quiver(NorthEast[:,1],NorthEast[:,0], np.sin(np.deg2rad(yawAim)), np.cos(np.deg2rad(yawAim)), color='b')
+# plt.axis("equal")
+# plt.xlabel('East')
+# plt.ylabel('North')
+# plt.show()
 
 # plt.figure(2)
 # kk=yawAim[0:-1]-tangent_angle
